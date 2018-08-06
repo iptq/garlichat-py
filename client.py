@@ -7,6 +7,7 @@ import pysodium
 
 from frontend import Application
 from datagram import ClientHandshake, ServerHandshake, SecretBox
+from packet import BasePacket, DummyPacket
 
 class Garlichat(object):
     def __init__(self):
@@ -40,7 +41,7 @@ class Garlichat(object):
         self.sb = SecretBox(rx_key, tx_key)
 
         # send an update
-        self.sock.send(self.sb.encrypt())
+        self.sock.send(self.sb.encrypt(DummyPacket()))
 
         while True:
             print("receiving...")

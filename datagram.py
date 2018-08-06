@@ -20,7 +20,7 @@ class ClientHandshake(object):
 		# magic signature
 		datagram = bytearray("GARLICKYCLIENT", "ascii")
 		# protocol version number
-		datagram.extend(struct.pack("<H", 0))
+		datagram.extend(struct.pack(">H", 0))
 
 		# generate ephemeral key
 		self.eph_pk, self.eph_sk = pysodium.crypto_kx_keypair()
@@ -62,7 +62,7 @@ class ServerHandshake(object):
 		assert self.datagram[:len(magic)] == magic
 
 		# protocol version
-		ver, = struct.unpack("<H", self.datagram[len(magic):len(magic)+2])
+		ver, = struct.unpack(">H", self.datagram[len(magic):len(magic)+2])
 		assert ver == 0
 
 		# get keys=
@@ -87,14 +87,35 @@ class SecretBox(object):
 		self.tx_key = tx_key
 
 	def decrypt(self, datagram):
-		len = struct.unpack("<Q", datagram[:8])
+		len = struct.unpack(">Q", datagram[:8])
 		nonce = datagram[8:32]
 		enc = datagram[32:32+len]
-		# decrypt
+		# TODO: untested
+		data = ctypes.create_string_buffer(pysodium.crypto_box_MACBYTES)
+		check(pysodium.sodium.crypto_secretbox_open_easy(
+			data,
+			ctypes.c_void_p(0),
+			self.eph_pk,
+			ctypes.c_ulonglong(len(self.eph_pk)),
+			self.sign_sk,
+		))
+		return data
 
 	def encrypt(self, packet):
 		datagram = bytearray()
 		data = packet.as_bytes()
 		nonce = secrets.token_bytes(24)
-		datagram.extend(struct.pack("<Q", len(data)))
+		datagram.extend(struct.pack(">Q", len(data)))
 		datagram.extend(nonce)
+		enc = ctypes.create_string_buffer(len(data) + pysodium.crypto_box_MACBYTES)
+		check(pysodium.sodium.crypto_secretbox_easy(
+			enc,
+			data,
+			ctypes.c_ulonglong(len(data)),
+			nonce,
+			self.tx_key,
+		))
+		datagram.extend(enc)
+		print(bytes(enc))
+		print(datagram)
+		return bytes(datagram)
